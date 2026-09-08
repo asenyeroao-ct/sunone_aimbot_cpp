@@ -1,0 +1,111 @@
+name: Build and release ai.exe
+
+on:
+  push:
+    branches:
+      - release/ai-binaries-20260908
+    paths:
+      - '.github/workflows/release-ai.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  SOURCE_SHA: 3cb488df0df1e3a9c7c079f72a87ec78d60104fb
+  RELEASE_TAG: medius-preview-20260908
+
+jobs:
+  build-dml:
+    name: Build DirectML
+    runs-on: windows-2025
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build DirectML Release
+        shell: powershell
+        run: |
+          .\build_dml.bat
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (-not (Test-Path 'build\dml\Release\ai.exe')) {
+            throw 'DirectML ai.exe was not produced.'
+          }
+
+      - name: Prepare DirectML executable
+        shell: powershell
+        run: |
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          Copy-Item 'build\dml\Release\ai.exe' 'dist\ai-dml.exe' -Force
+          Get-FileHash 'dist\ai-dml.exe' -Algorithm SHA256
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ai-dml
+          path: dist/ai-dml.exe
+          if-no-files-found: error
+
+  build-cuda:
+    name: Build CUDA
+    runs-on: windows-2025
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build CUDA Release
+        shell: powershell
+        run: |
+          .\build_cuda.bat -CudaArchBin 8.9
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (-not (Test-Path 'build\cuda\Release\ai.exe')) {
+            throw 'CUDA ai.exe was not produced.'
+          }
+
+      - name: Prepare CUDA executable
+        shell: powershell
+        run: |
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          Copy-Item 'build\cuda\Release\ai.exe' 'dist\ai-cuda.exe' -Force
+          Get-FileHash 'dist\ai-cuda.exe' -Algorithm SHA256
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ai-cuda
+          path: dist/ai-cuda.exe
+          if-no-files-found: error
+
+  release:
+    name: Publish GitHub Release
+    needs: [build-dml, build-cuda]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: ai-dml
+          path: release-assets
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: ai-cuda
+          path: release-assets
+
+      - name: Generate SHA256SUMS
+        shell: bash
+        run: |
+          cd release-assets
+          sha256sum ai-dml.exe ai-cuda.exe > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          gh release create "$RELEASE_TAG" \
+            release-assets/ai-dml.exe \
+            release-assets/ai-cuda.exe \
+            release-assets/SHA256SUMS.txt \
+            --repo "${{ github.repository }}" \
+            --target "$SOURCE_SHA" \
+            --title "Medius Preview - CUDA and DirectML" \
+            --notes $'Prebuilt Windows x64 binaries from the Medius integration branch.\n\nAssets:\n- ai-cuda.exe - CUDA/TensorRT build, CUDA architecture 8.9\n- ai-dml.exe - DirectML/ONNX Runtime build\n- SHA256SUMS.txt - SHA-256 checksums\n\nSource commit: '"$SOURCE_SHA"$'\n\nNote: Medius runtime is managed dynamically by the application and is not bundled into these executables.'
