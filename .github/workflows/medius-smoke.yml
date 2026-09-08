@@ -7,7 +7,10 @@ on:
       - 'sunone_aimbot_2/mouse/MediusRuntime.h'
       - 'sunone_aimbot_2/mouse/MouseInput.h'
       - 'sunone_aimbot_2/mouse/MouseInput.cpp'
+      - 'sunone_aimbot_2/overlay/medius_ui.h'
+      - 'sunone_aimbot_2/overlay/ui_sections.h'
       - 'tests/medius_runtime_smoke.cpp'
+      - 'tests/medius_ui_smoke.cpp'
       - '.github/workflows/medius-smoke.yml'
   workflow_dispatch:
 
@@ -16,11 +19,23 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Configure MSVC
+        shell: cmd
+        run: call "%ProgramFiles%\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat" && set > vcvars.txt
+
       - name: Compile Medius runtime smoke test
         shell: cmd
         run: |
           call "%ProgramFiles%\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
           cl /nologo /std:c++17 /EHsc /I . tests\medius_runtime_smoke.cpp /Fe:medius_runtime_smoke.exe
-      - name: Run smoke test
+
+      - name: Run runtime smoke test
         shell: cmd
         run: medius_runtime_smoke.exe
+
+      - name: Compile Medius UI integration
+        shell: cmd
+        run: |
+          call "%ProgramFiles%\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+          cl /nologo /std:c++17 /EHsc /c /I . /I sunone_aimbot_2 tests\medius_ui_smoke.cpp /Fo:medius_ui_smoke.obj
