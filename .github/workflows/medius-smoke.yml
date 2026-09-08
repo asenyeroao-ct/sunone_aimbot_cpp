@@ -1,0 +1,26 @@
+name: Medius smoke build
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'sunone_aimbot_2/mouse/MediusRuntime.h'
+      - 'sunone_aimbot_2/mouse/MouseInput.h'
+      - 'sunone_aimbot_2/mouse/MouseInput.cpp'
+      - 'tests/medius_runtime_smoke.cpp'
+      - '.github/workflows/medius-smoke.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile Medius runtime smoke test
+        shell: cmd
+        run: |
+          call "%ProgramFiles%\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+          cl /nologo /std:c++17 /EHsc /I . tests\medius_runtime_smoke.cpp /Fe:medius_runtime_smoke.exe
+      - name: Run smoke test
+        shell: cmd
+        run: medius_runtime_smoke.exe
