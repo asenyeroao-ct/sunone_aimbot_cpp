@@ -26,6 +26,7 @@ jobs:
       - name: Build DirectML Release
         shell: powershell
         run: |
+          $env:CL = '/DNOMINMAX'
           .\build_dml.bat
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           if (-not (Test-Path 'build\dml\Release\ai.exe')) {
@@ -116,6 +117,7 @@ jobs:
       - name: Build CUDA Release
         shell: powershell
         run: |
+          $env:CL = '/DNOMINMAX'
           .\build_cuda.bat -CudaArchBin 8.9
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           if (-not (Test-Path 'build\cuda\Release\ai.exe')) {
