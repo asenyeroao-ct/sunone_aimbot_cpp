@@ -1,8 +1,9 @@
 #include "sunone_aimbot_2/mouse/MediusRuntime.h"
 
 #include <iostream>
+#include <string>
 
-int main()
+int main(int argc, char** argv)
 {
     if (MediusRuntime::supportedAbiLabel() != "6")
         return 1;
@@ -29,5 +30,27 @@ int main()
     std::cout << "Supported versions: " << MediusRuntime::supportedVersionLabel() << '\n';
     std::cout << "Control baud: " << MediusRuntime::controlBaudRate() << '\n';
     std::cout << "Port policy: PASS\n";
+
+    if (argc > 1 && std::string(argv[1]) == "--update-integration")
+    {
+        runtime.requestForceUpdateCheck();
+        (void)runtime.connectMouse(); // A hosted runner normally has no Medius box; update/probe must still work.
+        const auto status = runtime.status();
+        if (!status.updateChecked)
+            return 20;
+        if (!status.latestKnown)
+            return 21;
+        if (status.latestSupported && !status.runtimeLoaded)
+            return 22;
+        if (status.latestSupported && status.runtimeAbi != status.latestAbi)
+            return 23;
+
+        std::cout << "Latest: v" << status.latestVersion << " / ABI " << status.latestAbi
+                  << " / " << (status.latestSupported ? "supported" : "unsupported") << '\n';
+        std::cout << "Runtime loaded: " << (status.runtimeLoaded ? "yes" : "no") << '\n';
+        std::cout << "Updater integration: PASS\n";
+        runtime.disconnectMouse();
+    }
+
     return 0;
 }
