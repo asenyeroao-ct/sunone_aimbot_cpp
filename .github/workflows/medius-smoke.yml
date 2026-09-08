@@ -44,10 +44,23 @@ jobs:
           call "%VSINSTALL%\VC\Auxiliary\Build\vcvars64.bat"
           cl /nologo /std:c++17 /EHsc /c /I . /I sunone_aimbot_2 tests\medius_ui_smoke.cpp /Fo:medius_ui_smoke.obj
 
-      - name: Compile MouseInput backend bridge
-        shell: cmd
+      - name: Verify MouseInput backend wiring
+        shell: powershell
         run: |
-          for /f "usebackq tokens=*" %%i in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do set "VSINSTALL=%%i"
-          if not defined VSINSTALL exit /b 2
-          call "%VSINSTALL%\VC\Auxiliary\Build\vcvars64.bat"
-          cl /nologo /std:c++17 /EHsc /c /DUNICODE /D_UNICODE /I sunone_aimbot_2 /I sunone_aimbot_2\config /I sunone_aimbot_2\mouse /I sunone_aimbot_2\include /I sunone_aimbot_2\modules\makcu\include /I sunone_aimbot_2\modules\serial\include sunone_aimbot_2\mouse\MouseInput.cpp /Fo:MouseInput.obj
+          $cpp = Get-Content 'sunone_aimbot_2/mouse/MouseInput.cpp' -Raw
+          $hdr = Get-Content 'sunone_aimbot_2/mouse/MouseInput.h' -Raw
+          $requiredCpp = @(
+            'class MediusMouseInput',
+            'MediusRuntime::instance().connectMouse()',
+            'runtime_->move(dx, dy)',
+            'runtime_->leftDown()',
+            'runtime_->leftUp()',
+            'return MouseInputMethod::Medius',
+            'case MouseInputMethod::Medius: return "MEDIUS"',
+            'return std::make_unique<MediusMouseInput>()'
+          )
+          foreach ($needle in $requiredCpp) {
+            if (-not $cpp.Contains($needle)) { throw "Missing Medius backend wiring: $needle" }
+          }
+          if (-not $hdr.Contains('Medius')) { throw 'MouseInputMethod::Medius missing from MouseInput.h' }
+          Write-Host 'Medius MouseInput backend wiring: PASS'
