@@ -52,6 +52,67 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install CUDA 13.2 build toolchain
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $cudaInstaller = Join-Path $env:RUNNER_TEMP 'cuda_13.2.2_windows_network.exe'
+          Invoke-WebRequest -Uri 'https://developer.download.nvidia.com/compute/cuda/13.2.2/network_installers/cuda_13.2.2_windows_network.exe' -OutFile $cudaInstaller
+
+          $components = @(
+            '-s',
+            'cudart_13.2',
+            'nvcc_13.2',
+            'cuobjdump_13.2',
+            'cuxxfilt_13.2',
+            'nvdisasm_13.2',
+            'nvprune_13.2',
+            'nvrtc_13.2',
+            'nvrtc_dev_13.2',
+            'nvjitlink_13.2',
+            'thrust_13.2',
+            'cublas_13.2',
+            'cublas_dev_13.2',
+            'cufft_13.2',
+            'cufft_dev_13.2',
+            'curand_13.2',
+            'curand_dev_13.2',
+            'cusolver_13.2',
+            'cusolver_dev_13.2',
+            'cusparse_13.2',
+            'cusparse_dev_13.2',
+            'npp_13.2',
+            'npp_dev_13.2',
+            'nvjpeg_13.2',
+            'nvjpeg_dev_13.2',
+            'visual_studio_integration_13.2'
+          )
+          $proc = Start-Process -FilePath $cudaInstaller -ArgumentList $components -Wait -PassThru
+          if ($proc.ExitCode -ne 0) {
+            throw "CUDA installer failed with exit code $($proc.ExitCode)."
+          }
+
+          $cudaPath = 'C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v13.2'
+          if (-not (Test-Path (Join-Path $cudaPath 'bin\nvcc.exe'))) {
+            throw "CUDA nvcc.exe was not installed at $cudaPath."
+          }
+          "CUDA_PATH=$cudaPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          (Join-Path $cudaPath 'bin') | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          & (Join-Path $cudaPath 'bin\nvcc.exe') --version
+
+      - name: Download TensorRT 10.16 Windows SDK
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $downloads = Join-Path $HOME 'Downloads'
+          New-Item -ItemType Directory -Force -Path $downloads | Out-Null
+          $trtZip = Join-Path $downloads 'TensorRT-10.16.1.11.Windows.amd64.cuda-13.2.zip'
+          Invoke-WebRequest -Uri 'https://developer.nvidia.com/downloads/compute/machine-learning/tensorrt/10.16.1/zip/TensorRT-10.16.1.11.Windows.amd64.cuda-13.2.zip' -OutFile $trtZip -MaximumRedirection 10
+          if ((Get-Item $trtZip).Length -lt 1MB) {
+            throw 'TensorRT archive download is unexpectedly small.'
+          }
+          Write-Host "TensorRT SDK downloaded: $((Get-Item $trtZip).Length) bytes"
+
       - name: Build CUDA Release
         shell: powershell
         run: |
@@ -108,4 +169,4 @@ jobs:
             --repo "${{ github.repository }}" \
             --target "$SOURCE_SHA" \
             --title "Medius Preview - CUDA and DirectML" \
-            --notes $'Prebuilt Windows x64 binaries from the Medius integration branch.\n\nAssets:\n- ai-cuda.exe - CUDA/TensorRT build, CUDA architecture 8.9\n- ai-dml.exe - DirectML/ONNX Runtime build\n- SHA256SUMS.txt - SHA-256 checksums\n\nSource commit: '"$SOURCE_SHA"$'\n\nNote: Medius runtime is managed dynamically by the application and is not bundled into these executables.'
+            --notes $'Prebuilt Windows x64 binaries from the Medius integration branch.\n\nAssets:\n- ai-cuda.exe - CUDA 13.2 / TensorRT 10.16 build, CUDA architecture 8.9\n- ai-dml.exe - DirectML / ONNX Runtime build\n- SHA256SUMS.txt - SHA-256 checksums\n\nSource commit: '"$SOURCE_SHA"$'\n\nNote: Medius runtime is managed dynamically by the application and is not bundled into these executables.'
